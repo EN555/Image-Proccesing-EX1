@@ -185,7 +185,6 @@ def quantizeImage(imOrig: np.ndarray, nQuant: int, nIter: int) -> (List[np.ndarr
 
         # check the MSE and keep him
         MSE = error(conv_img/255.0, img_up/255.0)
-        print(MSE)
         error_list.append(MSE)
 
         # return to the picture
