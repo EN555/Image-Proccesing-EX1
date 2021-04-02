@@ -34,10 +34,15 @@ def imReadAndConvert(filename: str, representation: int) -> np.ndarray:
     :return: The image object
     """
     # divide to two cases
+    try:
+        path = cv2.imread(filename)
+    except:
+        return None
+
     if representation == 1:
-        img = cv2.imread(filename, cv2.IMREAD_GRAYSCALE)  # convert to grey scale
+        img = cv2.cvtColor(path, cv2.COLOR_BGR2GRAY)  # convert to grey scale
     else:
-        img = cv2.cvtColor(cv2.imread(filename), cv2.COLOR_BGR2RGB)  # convert to RGB
+        img = cv2.cvtColor(path, cv2.COLOR_BGR2RGB).astype(np.float32)  # convert to RGB
     img = img / 255.0  # normalize the image and represent him as float
     return img
 
@@ -50,10 +55,11 @@ def imDisplay(filename: str, representation: int):
     :return: None
     """
     img = imReadAndConvert(filename, representation)
-    plt.axis("off")  # remove the axis from the image
-    plt.imshow(img)
+    if representation == 1:
+        plt.imshow(img, cmap='gray')
+    else:
+        plt.imshow(img)
     plt.show()
-
 
 def transformRGB2YIQ(imgRGB: np.ndarray) -> np.ndarray:  # ndarray mean n - dimensional array
     """
@@ -83,10 +89,11 @@ def transformYIQ2RGB(imgYIQ: np.ndarray) -> np.ndarray:
 def RGB_gray_scale(imgOrig: np.ndarray)-> (bool, np.ndarray):
     isRGB = False
     img_to_work_with = imgOrig
-    if imgOrig.shape[-1] == 3:
+    if imgOrig.shape[-1] == 3 and len(imgOrig.shape) == 3:
         isRGB = True
     if isRGB:
-        img_to_work_with = (transformRGB2YIQ(imgOrig))[:,:,0]
+        img_to_work_with = transformRGB2YIQ(imgOrig)
+        img_to_work_with = img_to_work_with[:, :, 0]
     return isRGB, img_to_work_with
 
 def Y_to_RGB(RGBimg: np.ndarray,y_update: np.array)-> np.ndarray:
@@ -106,9 +113,8 @@ def hsitogramEqualize(imgOrig: np.ndarray) -> (np.ndarray, np.ndarray, np.ndarra
     # create histogram for the original image
     img_flatten = conv_img.flatten()  # return 1-D array of all the pixels
     img_flatten = img_flatten * 255
-    img_flatten = np.around(img_flatten)  # make sure that all the numbers are integers
+    img_flatten = np.round(img_flatten).astype(np.int)  # make sure that all the numbers are integers
     histOrg, bins_edges = np.histogram(img_flatten, 256, [0, 255])  # hist is the sum of each pixels from the image
-
     # create the new image
     new_image = np.cumsum(histOrg)
     new_image = new_image / new_image.max()  # histOrg.max() is the maximum , we got the percentage
@@ -119,13 +125,15 @@ def hsitogramEqualize(imgOrig: np.ndarray) -> (np.ndarray, np.ndarray, np.ndarra
     # insert to the image
     new_im = np.zeros_like(conv_img, dtype=np.float)
     for old_color, new_color in enumerate(look_up_table):
-        new_im[conv_img*255 == old_color] = new_color
-    if isRGB:
-        new_im = Y_to_RGB(imgOrig, new_im)
+        new_im[np.around(conv_img*255) == old_color] = new_color
     # create the histEQ
     new_img_faltten = new_im.flatten()
     new_img_faltten = np.around(new_img_faltten)
     histEQ, bins_edges = np.histogram(new_img_faltten, 256, [0, 255])
+    plt.plot(histEQ)
+    plt.show()
+    if isRGB:
+        new_im = Y_to_RGB(imgOrig, new_im/255.0)
     return new_im, histOrg, histEQ
 
 def error(imgOrig:np.array, imgCurr: np.array)-> float:
@@ -202,9 +210,8 @@ def quantizeImage(imOrig: np.ndarray, nQuant: int, nIter: int) -> (List[np.ndarr
     return quant_img, error_list
 
 if __name__ == '__main__':
-    # transformRGB2YIQ(cv2.imread("dark.jpg"))
-    # plt.imshow(transformRGB2YIQ(imReadAndConvert("beach.jpg",2)))
-    # plt.show()
-    # new_im, histOrg, histEQ = hsitogramEqualize(cv2.imread("dark.jpg"))
-    img = imReadAndConvert("dark.jpg", 1)
-    img_lst, err_lst = quantizeImage(img, 3, 20)
+    img = cv2.imread("beach.jpg")
+    img_lst, err_lst = quantizeImage(img, 3, 3)
+    # cv2.imwrite("new_beach.jpg", img_lst[-1])
+    # img1 = cv2.imread("new_beach.jpg")
+    # print(transformRGB2YIQ(img1)[:,:,0])
