@@ -33,12 +33,11 @@ def imReadAndConvert(filename: str, representation: int) -> np.ndarray:
     :param representation: GRAY_SCALE or RGB
     :return: The image object
     """
-    # divide to two cases
     try:
         path = cv2.imread(filename)
     except:
         return None
-
+    # divide to two cases
     if representation == 1:
         img = cv2.cvtColor(path, cv2.COLOR_BGR2GRAY)  # convert to grey scale
     else:
@@ -87,19 +86,34 @@ def transformYIQ2RGB(imgYIQ: np.ndarray) -> np.ndarray:
     return res
 
 def RGB_gray_scale(imgOrig: np.ndarray)-> (bool, np.ndarray):
+    """"
+    :param imgOrig: numpy array of image
+    :return tuple if boolean that represent if
+    the image RGB or not and if it's RGB it's
+    convert him to YIQ and return the Y.
+    check if the numpy array is RGB or it's
+    gray scale
+    """
     isRGB = False
     img_to_work_with = imgOrig
-    if imgOrig.shape[-1] == 3 and len(imgOrig.shape) == 3:
+    if imgOrig.shape[-1] == 3 and len(imgOrig.shape) == 3:     # if it's RGB image
         isRGB = True
     if isRGB:
-        img_to_work_with = transformRGB2YIQ(imgOrig)
-        img_to_work_with = img_to_work_with[:, :, 0]
+        img_to_work_with = transformRGB2YIQ(imgOrig)    # convert him to YIQ
+        img_to_work_with = img_to_work_with[:, :, 0]    # take only the Y
     return isRGB, img_to_work_with
 
 def Y_to_RGB(RGBimg: np.ndarray,y_update: np.array)-> np.ndarray:
-    YIQ = transformRGB2YIQ(RGBimg)
-    YIQ[:, :, 0] = y_update
-    new_img = transformYIQ2RGB(YIQ)
+    """"
+    :param RGBimg: image that represent as RGB
+    :param y_update: np array of update Y
+    :return RGB model with update Y
+    convert an RGB image to YIQ image as
+    Y update in other function
+    """
+    YIQ = transformRGB2YIQ(RGBimg)  # first convert to RGB
+    YIQ[:, :, 0] = y_update  # insert the Y
+    new_img = transformYIQ2RGB(YIQ)  # convert again to YIQ
     return new_img
 
 def hsitogramEqualize(imgOrig: np.ndarray) -> (np.ndarray, np.ndarray, np.ndarray):
@@ -110,47 +124,59 @@ def hsitogramEqualize(imgOrig: np.ndarray) -> (np.ndarray, np.ndarray, np.ndarra
     """
     # check if it's RGB image and return the correct color space
     isRGB, conv_img = RGB_gray_scale(imgOrig)
+
     # create histogram for the original image
+    conv_img = np.around(conv_img * 255).astype(np.int)
     img_flatten = conv_img.flatten()  # return 1-D array of all the pixels
-    img_flatten = img_flatten * 255
-    img_flatten = np.round(img_flatten).astype(np.int)  # make sure that all the numbers are integers
     histOrg, bins_edges = np.histogram(img_flatten, 256, [0, 255])  # hist is the sum of each pixels from the image
+
     # create the new image
-    new_image = np.cumsum(histOrg)
-    new_image = new_image / new_image.max()  # histOrg.max() is the maximum , we got the percentage
+    cumsum_im = np.cumsum(histOrg)
+    cumsum_im = cumsum_im / cumsum_im.max()  # histOrg.max() is the maximum , we got the percentage
     look_up_table = np.zeros(256)
-    for loc in range(len(new_image)):
-        new_color = int(np.floor(255 * new_image[loc]))
+    for loc in range(len(cumsum_im)):
+        new_color = 255 * cumsum_im[loc]
         look_up_table[loc] = new_color  # represent the intensity in this pixel
     # insert to the image
     new_im = np.zeros_like(conv_img, dtype=np.float)
     for old_color, new_color in enumerate(look_up_table):
-        new_im[np.around(conv_img*255) == old_color] = new_color
+        new_im[conv_img == old_color] = new_color
+
     # create the histEQ
-    new_img_faltten = new_im.flatten()
+    new_img_faltten = new_im.flatten()  # return 1-D array of all the pixels
     new_img_faltten = np.around(new_img_faltten)
     histEQ, bins_edges = np.histogram(new_img_faltten, 256, [0, 255])
-    plt.plot(histEQ)
-    plt.show()
-    if isRGB:
+
+    if isRGB:   # check how to represent the image
         new_im = Y_to_RGB(imgOrig, new_im/255.0)
     return new_im, histOrg, histEQ
 
 def error(imgOrig:np.array, imgCurr: np.array)-> float:
+    """"
+    :param imgOrig: array of image
+    :param imgCurr: array of the up image
+    :return number that represent the size of the error
+    the function calculate the error between two pictures using
+    MSE model for error calculation
+    """
     sub_img = np.subtract(imgOrig, imgCurr)
     sum_to_square_img = np.sum(np.square(sub_img))
     size = imgOrig.size
     res = np.sqrt(sum_to_square_img)/size
     return res
 
-def divide_histogram(n: int)->np.ndarray:
-    # divide to n partition (n+1 bondries) start at 0 and finish at 255
-    boundries_list = np.zeros(n+1, dtype=int)
-    jumps = int(255/n)
-    for i in range(1,n):
-        boundries_list[i] = boundries_list[i-1] + jumps
-    boundries_list[n] = 255
-    return boundries_list
+def divide_histogram(n: int, hist: np.ndarray)->np.ndarray:
+    """"
+    the function create dividation of range of pixels according
+    to the number 0f pixels, the dividation can work with image
+    that have specific range of intensity like image with colors
+    of gray and black
+    """
+    cumsum = np.cumsum(hist)
+    borders = np.searchsorted(cumsum, np.array(range(1, n)) * (cumsum.max()//n))    # find the indexes where the numbers need to be
+    borders = np.insert(borders, 0, 0)  # insert 0 to the start of the list
+    borders =np.insert(borders, n, 256)  # insert 255 to the end of the list
+    return borders
 
 def quantizeImage(imOrig: np.ndarray, nQuant: int, nIter: int) -> (List[np.ndarray], List[float]):
     """
@@ -160,31 +186,30 @@ def quantizeImage(imOrig: np.ndarray, nQuant: int, nIter: int) -> (List[np.ndarr
         :param nIter: Number of optimization loops
         :return: (List[qImage_i],List[error_i])
     """
-    isRGB, conv_img = RGB_gray_scale(imOrig)
+    isRGB, conv_img = RGB_gray_scale(imOrig)  # check if it's RGB image or gray scale
     if np.amax(conv_img) <= 1:  # so the picture is normalized
         conv_img = conv_img * 255
-    conv_img = conv_img.astype('uint8')
+    conv_img = np.round(conv_img).astype(np.int)  # check that all the values represent as integers
+
     # create histogram from the image
     hist, bins = np.histogram(conv_img, 256, [0, 255])
     # divide the range [0,255] to nQuant+1
-    z = divide_histogram(nQuant)    # represent the divdiation of all the range
+    z = divide_histogram(nQuant, hist)    # represent the division of all the range
     q = np.zeros(nQuant)   # represent the average of every cell
-    # need to return
+
+   # initial two lists that the function need to return
     error_list = list()
     quant_img = list()
     size = conv_img.shape
     for i in range(nIter):  # run n times on the boundries
         img_up = np.zeros(size)
-        for divide in range(len(q)):
+        for divide in range(len(q)):    # divide represent the
             # do average on the range in the z
-            if divide == len(q)-1:  # if it's the last cell
-                right_bound = z[divide + 1] + 1  # we use at arange so we need 256
-            else:
-                right_bound = z[divide + 1]
-            curr_cell = np.arange(z[divide], right_bound)
-            q[divide] = np.average(curr_cell, weights=hist[z[divide]: right_bound])  # give weight for every pixel
+            curr_cell = np.arange(z[divide], z[divide+1])
+            avg = int(np.average(curr_cell, weights=hist[z[divide]:z[divide+1]]))  # give weight for every pixel
+            q[divide] = avg
             # update the picture
-            cond = np.logical_and(conv_img >= z[divide], conv_img < right_bound)
+            cond = np.logical_and(conv_img >= z[divide], conv_img < z[divide+1])
             img_up[cond] = q[divide]
 
         # update the new boundries
@@ -192,10 +217,10 @@ def quantizeImage(imOrig: np.ndarray, nQuant: int, nIter: int) -> (List[np.ndarr
             z[i] = (q[i-1] + q[i])/2
 
         # check the MSE and keep him
-        MSE = error(conv_img/255.0, img_up/255.0)
+        MSE = error(conv_img, img_up)
         error_list.append(MSE)
 
-        # return to the picture
+        # return to the image
         new_im = None
         if isRGB:
             img_up = Y_to_RGB(imOrig, img_up/255.0)
@@ -203,15 +228,9 @@ def quantizeImage(imOrig: np.ndarray, nQuant: int, nIter: int) -> (List[np.ndarr
 
         # check if to terminate the iterations
         if len(error_list) >= 2:
-            if np.abs(error_list[-1] - error_list[-2]) < 0.000000001: # represent if it's converge
+            if np.abs(error_list[-1] - error_list[-2]) < 0.00000001:  # represent if it's converge
                 break
-    plt.plot(error_list)
-    plt.show()
     return quant_img, error_list
 
 if __name__ == '__main__':
-    img = cv2.imread("beach.jpg")
-    img_lst, err_lst = quantizeImage(img, 3, 3)
-    # cv2.imwrite("new_beach.jpg", img_lst[-1])
-    # img1 = cv2.imread("new_beach.jpg")
-    # print(transformRGB2YIQ(img1)[:,:,0])
+    pass

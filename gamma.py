@@ -27,15 +27,15 @@ def gammaDisplay(img_path: str, rep: int):
     :param rep: grayscale(1) or RGB(2)
     :return: None
     """
-
+    # divide between the type of the image, 1 as GrayScale model image either it's RGB image model
     if rep ==1:
         curr_img= cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
     else:
         curr_img= cv2.imread(img_path)
 
-    cv2.namedWindow('Gamma_Correction')
+    cv2.namedWindow('Gamma_Correction', flags=cv2.WINDOW_NORMAL)
     cv2.imshow('Gamma_Correction', curr_img)
-    cv2.createTrackbar('Gamma','Gamma_Correction',0,200,nothing)    #
+    cv2.createTrackbar('Gamma','Gamma_Correction',0,200,nothing)    # create the bar that response on the gamma size
     while True:
         h = cv2.getTrackbarPos('Gamma', 'Gamma_Correction')
         h=h/100   # the differences need to be in 0.1 intervals
